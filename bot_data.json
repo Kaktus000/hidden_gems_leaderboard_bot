@@ -9,15 +9,15 @@
       "emoji": "👒",
       "author": "Gear Six"
     },
-    "1000003": {
-      "name": "JS-Racoon",
-      "emoji": "🦝",
-      "author": "KonniBot"
-    },
     "1000004": {
       "name": "Traveling Bot",
       "emoji": "🤖",
       "author": "BotOnAJourney"
+    },
+    "1000005": {
+      "name": "JS-Raccoon",
+      "emoji": "🦝",
+      "author": "KonniBot"
     }
   }
 }
