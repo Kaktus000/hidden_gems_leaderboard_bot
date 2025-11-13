@@ -1,0 +1,23 @@
+{
+  "scheduled_channels": {
+    "1382608864976961556": "Discord Bot Testing Server#🤖bot-demo-channel",
+    "1285294053788880907": "Discord Bot Testing Server#🤖bot-testing-channel"
+  },
+  "tracked_bots": {
+    "1000002": {
+      "name": "Two Piece",
+      "emoji": "👒",
+      "author": "Gear Six"
+    },
+    "1000003": {
+      "name": "JS-Racoon",
+      "emoji": "🦝",
+      "author": "KonniBot"
+    },
+    "1000004": {
+      "name": "Traveling Bot",
+      "emoji": "🤖",
+      "author": "BotOnAJourney"
+    }
+  }
+}
