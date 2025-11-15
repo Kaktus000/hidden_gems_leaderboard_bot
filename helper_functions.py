@@ -19,8 +19,8 @@ from asset_access import language_logos, get_lang_icon, get_twemoji_image
 
 BASE_DIR = Path(__file__).parent
 FONTS_DIR = BASE_DIR / "fonts"
-OUTPUT_DIR = BASE_DIR / "generated_tables"
 LOCAL_DATA = BASE_DIR / "local_data"
+OUTPUT_DIR = LOCAL_DATA / "generated_tables"
 BOT_DATA_PATH = BASE_DIR / "bot_data.json"
 TEXT_FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
 HTML_FILE = LOCAL_DATA / "leaderboard.html"
