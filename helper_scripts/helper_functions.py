@@ -4,6 +4,9 @@
 import os
 import json
 import math
+import re
+from typing import Optional, Dict, Any
+
 
 # Third-party imports
 import discord
@@ -11,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 import datetime
 import requests
+
 
 # Own modules
 from helper_scripts.asset_access import language_logos, get_lang_icon, get_twemoji_image
@@ -180,7 +184,7 @@ async def send_table_images(
         header = "**Aktuelles Leaderboard**"
 
     if top_x:
-        header += f" (Top {top_x})"
+        header += f"\n(Top {top_x})"
 
     await status_msg.edit(content=header)
 
@@ -188,24 +192,55 @@ async def send_table_images(
         await channel.send(file=discord.File(path))
 
 
-# MARK: get_leaderboard_date()
-def get_leaderboard_date(html: str) -> datetime.date | None:
+# MARK: extract_leaderboard_meta()
+def extract_leaderboard_meta(html: str) -> Dict[str, Any]:
     soup = BeautifulSoup(html, "html.parser")
-    boxes = soup.find_all("div", class_="box")
+
+    # Results
+    result: Dict[str, Optional[Any]] = {
+        "date": None,
+        "stage": None,
+        "seed": None,
+    }
+
+    # Regex for Stage #X
+    stage_regex = re.compile(r"Stage\s*#\s*\d+", re.IGNORECASE)
+
+    # Find proper columns only
+    boxes = soup.find_all("div", class_="col-md-4")
+
     for box in boxes:
         h3 = box.find("h3")
-        if h3 and h3.text.strip() == "Datum":
-            p = box.find("p")
-            if p and p.text.strip():
-                date_str = p.text.strip()
-                try:
-                    leaderboard_date = datetime.datetime.strptime(
-                        date_str, "%d. %B %Y"
-                    ).date()
-                    return leaderboard_date
-                except ValueError:
-                    return None
-    return None
+        p = box.find("p")
+        if not h3 or not p:
+            continue
+
+        title = h3.text.strip()
+        value = p.text.strip()
+
+        # --- DATE ---
+        if title == "Datum":
+            try:
+                parsed = datetime.datetime.strptime(value, "%d. %B %Y").date()
+                result["date"] = parsed
+            except ValueError:
+                result["date"] = None
+
+        # --- STAGE ---
+        elif stage_regex.fullmatch(title):
+            # Combine the Stage number from <h3> and the name from <p>
+            result["stage"] = f"{title} - {value}"
+
+        # --- SEED ---
+        elif title == "Seed":
+            # Split value into the actual seed and the rest (e.g., rounds)
+            if " " in value:
+                seed_part, rest = value.split(" ", 1)
+                result["seed"] = f"{title}:`{seed_part}` {rest}"
+            else:
+                result["seed"] = f"{title}: `{value}`"
+
+    return result
 
 
 # MARK: parse_html_to_json()
@@ -339,22 +374,22 @@ def json_to_text_table(leaderboard_json: list[dict]) -> list[str]:
 
 
 # MARK: get_leaderboard_json()
-def get_leaderboard_json() -> tuple[list[dict], datetime.date | None]:
+def get_leaderboard_json() -> tuple[list[dict], dict[str, Any]]:
     url = "https://hiddengems.gymnasiumsteglitz.de/scrims"
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         html = response.text
     except requests.RequestException as e:
-        return [{"error": f"Fehler beim Abrufen des Leaderboards: {e}"}], None
+        return [{"error": f"Fehler beim Abrufen des Leaderboards: {e}"}], {}
 
     # Extract the leaderboard date
-    leaderboard_date = get_leaderboard_date(html)
+    leaderboard_meta = extract_leaderboard_meta(html)
 
     # Extract the leaderboard JSON
     leaderboard_json = parse_html_to_json(html)
 
-    return leaderboard_json, leaderboard_date
+    return leaderboard_json, leaderboard_meta
 
 
 # MARK: send_lines_chunked()
@@ -374,7 +409,7 @@ async def send_lines_chunked(
         header = "**Aktuelles Leaderboard**"
 
     if top_x:
-        header += f" (Top {top_x})"
+        header += f"\n(Top {top_x})"
 
     await status_msg.edit(content=header)
 
@@ -408,19 +443,36 @@ def filter_json_tracked(
 
 # MARK: send_leaderboard()
 async def send_leaderboard(channel, tracked_bots, top_x, force_text, as_thread):
-    status_msg = await channel.send("Fetching leaderboards...")
+    status_msg = await channel.send("*⌛Fetching leaderboards...*")
 
     if as_thread:
         # TODO: implement thread posting
         pass
 
-    leaderboard_json, leaderboard_date = get_leaderboard_json()
+    leaderboard_json, leaderboard_meta = get_leaderboard_json()
 
-    # Format the date for the title
-    if leaderboard_date:
-        title = f"**Leaderboard vom {leaderboard_date.strftime('%d. %B %Y')}**"
+    # Format the title using metadata (date, seed, stage)
+    if leaderboard_meta:
+        # DATE
+        date_str = (
+            leaderboard_meta["date"].strftime("%d. %B %Y")
+            if leaderboard_meta.get("date")
+            else "Unbekanntes Datum"
+        )
+
+        # STAGE
+        stage_str = (
+            f"{leaderboard_meta['stage']}"
+            if leaderboard_meta.get("stage") is not None
+            else ""
+        )
+
+        # SEED
+        seed_str = f"{leaderboard_meta['seed']}" if leaderboard_meta.get("seed") else ""
+
+        title = f"## Leaderboard vom {date_str}\n-# {stage_str}\n-# {seed_str}"
     else:
-        title = "**Aktuelles Leaderboard**"
+        title = "## Aktuelles Leaderboard"
 
     if force_text:
         await send_lines_chunked(channel, status_msg, leaderboard_json, top_x, title)
@@ -429,7 +481,7 @@ async def send_leaderboard(channel, tracked_bots, top_x, force_text, as_thread):
 
     # Tracked bots
     leaderboard_json_tracked = filter_json_tracked(leaderboard_json, tracked_bots)
-    if leaderboard_json_tracked:
+    if leaderboard_json_tracked and len(leaderboard_json_tracked) > 0:
         await channel.send("**Tracked Bots**")
         if force_text:
             await send_lines_chunked(

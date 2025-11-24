@@ -223,7 +223,7 @@ def register_commands(
         elif action == "add":
             if not arg:
                 await ctx.send(
-                    "Bitte gib den Namen des Bots an, z.B. `!track add ZitronenBot`"
+                    "Bitte gib den Namen des Bots an, z.B. `!track add ZitronenBot` oder mehrere durch Kommas getrennt."
                 )
                 return
 
@@ -232,79 +232,131 @@ def register_commands(
                 await ctx.send(leaderboard_json[0]["error"])
                 return
 
-            # Filter bots matching the given name (case-insensitive)
-            matching_bots = [
-                bot
-                for bot in leaderboard_json
-                if bot.get("Bot", "").lower() == arg.lower()
-            ]
+            # Split by commas and strip whitespace
+            bot_names = [name.strip() for name in arg.split(",") if name.strip()]
+            added_bots = []
+            not_found = []
 
-            if not matching_bots:
-                await ctx.send(f"Kein Bot mit dem Namen `{arg}` gefunden.")
-                return
+            MAX_TRACKED_BOTS = 25
 
-            if len(matching_bots) > 1:
-                # Send numbered list for disambiguation
-                msg_lines = [
-                    f"{idx+1}. {b.get('Col1','')} {b.get('Bot','')} ({b.get('Autor / Team','')})"
-                    for idx, b in enumerate(matching_bots)
+            for bot_name in bot_names:
+                if len(tracked_bots) >= MAX_TRACKED_BOTS:
+                    not_found.append(
+                        bot_name
+                        + f" (kann nicht hinzugefügt werden, Limit erreicht ({MAX_TRACKED_BOTS}))"
+                    )
+                    continue
+
+                matching_bots = [
+                    bot
+                    for bot in leaderboard_json
+                    if bot.get("Bot", "").lower() == bot_name.lower()
                 ]
-                await ctx.send(
-                    "Mehrere Bots gefunden. Bitte wiederhole den Befehl mit Index:\n"
-                    + "\n".join(msg_lines)
-                )
-                return
 
-            # Single match: add to tracked
-            bot_info = matching_bots[0]
+                if not matching_bots:
+                    not_found.append(bot_name)
+                    continue
 
-            # Append to the list
-            tracked_bots.append(
-                {
+                if len(matching_bots) > 1:
+                    not_found.append(bot_name + " (mehrdeutig)")
+                    continue
+
+                bot_info = matching_bots[0]
+
+                # Check if bot already tracked (compare full dict)
+                bot_dict = {
                     "name": bot_info.get("Bot"),
                     "emoji": bot_info.get("Col1", ""),
                     "author": bot_info.get("Autor / Team", ""),
                 }
-            )
+                if any(b == bot_dict for b in tracked_bots):
+                    not_found.append(bot_name + " (bereits getrackt)")
+                    continue
+
+                tracked_bots.append(bot_dict)
+                added_bots.append(bot_info.get("Bot"))
 
             # Save updated list
             set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
 
-            # Green confirmation embed
+            # Build embed for confirmation
             embed = discord.Embed(
-                title="✅ Bot erfolgreich getrackt!",
-                description=f"`{bot_info.get('Bot')}` wurde zur Tracking-Liste hinzugefügt.",
+                title="Folgende Bots wurden hinzugefügt",
                 color=0x00FF00,
             )
+
+            if added_bots:
+                for bot_name in added_bots:
+                    # find the info from tracked_bots
+                    bot_info = next(
+                        (b for b in tracked_bots if b["name"] == bot_name), None
+                    )
+                    if bot_info:
+                        embed.add_field(
+                            name=f"{bot_info['emoji']} {bot_info['name']}",
+                            value=f"Autor: {bot_info['author']}",
+                            inline=False,
+                        )
+
+            if not_found:
+                embed.add_field(
+                    name="⚠️ Nicht gefunden / mehrdeutig",
+                    value="\n".join(not_found),
+                    inline=False,
+                )
+
             await ctx.send(embed=embed)
             return
 
         elif action == "remove":
             if not arg:
                 await ctx.send(
-                    "Bitte gib den Index des zu entfernenden Bots an, z.B. `!track remove 2`"
+                    "Bitte gib den Index des zu entfernenden Bots an, z.B. `!track remove 2` oder mehrere durch Kommas getrennt."
                 )
                 return
 
-            try:
-                index = int(arg) - 1
-                if index < 0 or index >= len(tracked_bots):
-                    await ctx.send("Ungültiger Index.")
-                    return
+            indices = []
+            not_found = []
+            # Parse comma-separated indices
+            for part in arg.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    idx = int(part) - 1
+                    if 0 <= idx < len(tracked_bots):
+                        indices.append(idx)
+                    else:
+                        not_found.append(part)
+                except ValueError:
+                    not_found.append(part)
 
-                removed_bot = tracked_bots.pop(index)
-                set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
+            removed_bots = []
+            # Remove in reverse order to avoid index shifting
+            for idx in sorted(indices, reverse=True):
+                removed_bots.append(tracked_bots.pop(idx))
 
-                # Red confirmation embed
-                embed = discord.Embed(
-                    title="🗑️ Bot entfernt",
-                    description=f"`{removed_bot['name']}` wurde aus der Tracking-Liste entfernt.",
-                    color=0x00FF00,
+            set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
+
+            # Build embed
+            embed = discord.Embed(title="Folgende Bots wurden entfernt", color=0xFF0000)
+
+            if removed_bots:
+                for bot_info in removed_bots:
+                    embed.add_field(
+                        name=f"{bot_info['emoji']} {bot_info['name']}",
+                        value=f"Autor: {bot_info['author']}",
+                        inline=False,
+                    )
+
+            if not_found:
+                embed.add_field(
+                    name="⚠️ Ungültige Indizes",
+                    value="\n".join(not_found),
+                    inline=False,
                 )
-                await ctx.send(embed=embed)
 
-            except ValueError:
-                await ctx.send("Ungültige Eingabe. Bitte gib eine Zahl an.")
+            await ctx.send(embed=embed)
 
         else:
             await ctx.send(
