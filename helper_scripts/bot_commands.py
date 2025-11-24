@@ -114,7 +114,7 @@ def register_commands(
                 scheduled_channels[str(channel_id)] = f"{guild.name}#{channel.name}"
                 save_channels()
                 await ctx.send(
-                    "✅ Dieser Channel wird jetzt täglich um 01:00 CET das Leaderboard erhalten."
+                    "✅ Dieser Channel wird jetzt täglich um 03:00 CET das Leaderboard erhalten."
                 )
 
         # STOP
