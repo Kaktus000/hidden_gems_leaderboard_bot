@@ -87,7 +87,7 @@ def main():
         if not scheduler.get_jobs():
             job = scheduler.add_job(
                 post_lb_in_scheduled_channels,
-                CronTrigger(hour=1, minute=00),
+                CronTrigger(hour=3, minute=00),
                 args=[bot],
             )
             scheduler.start()
