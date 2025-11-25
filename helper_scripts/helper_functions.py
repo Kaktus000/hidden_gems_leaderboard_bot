@@ -391,7 +391,7 @@ def get_leaderboard_json() -> tuple[list[dict], dict[str, Any]]:
 
 
 # MARK: send_lines_chunked()
-async def send_lines_chunked(
+async def send_table_texts(
     channel, status_msg, leaderboard_json, top_x, title: str | None = None
 ):
     lines = json_to_text_table(leaderboard_json)
@@ -475,7 +475,7 @@ async def send_leaderboard(channel, tracked_bots, top_x, force_text, as_thread):
         title = "## Aktuelles Leaderboard"
 
     if force_text:
-        await send_lines_chunked(channel, status_msg, leaderboard_json, top_x, title)
+        await send_table_texts(channel, status_msg, leaderboard_json, top_x, title)
     else:
         await send_table_images(channel, status_msg, leaderboard_json, top_x, title)
 
@@ -485,7 +485,7 @@ async def send_leaderboard(channel, tracked_bots, top_x, force_text, as_thread):
     leaderboard_json_tracked = filter_json_tracked(leaderboard_json, tracked_bots)
     if leaderboard_json_tracked and len(leaderboard_json_tracked) > 0:
         if force_text:
-            await send_lines_chunked(
+            await send_table_texts(
                 channel, status_msg, leaderboard_json_tracked, 0, title
             )
         else:
