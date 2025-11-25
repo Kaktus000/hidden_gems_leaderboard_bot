@@ -176,13 +176,12 @@ async def send_table_images(
     image_paths = generate_images_from_json(leaderboard_json, top_x)
 
     # Build title message
+    header = ""
     if title:
-        header = title
-    else:
-        header = "**Aktuelles Leaderboard**"
+        header += title
 
-    if top_x:
-        header += f"\n(Top {top_x})"
+    if top_x and top_x > 0:
+        header += f"\n**(Top {top_x})**"
 
     await status_msg.edit(content=header)
 
@@ -234,7 +233,7 @@ def extract_leaderboard_meta(html: str) -> Dict[str, Any]:
             # Split value into the actual seed and the rest (e.g., rounds)
             if " " in value:
                 seed_part, rest = value.split(" ", 1)
-                result["seed"] = f"{title}:`{seed_part}` {rest}"
+                result["seed"] = f"{title}: `{seed_part}` {rest}"
             else:
                 result["seed"] = f"{title}: `{value}`"
 
@@ -401,13 +400,12 @@ async def send_table_texts(
         lines = lines[: top_x + 2]  # +2 to include header + spacer
 
     # Build title message
+    header = ""
     if title:
-        header = title
-    else:
-        header = "**Aktuelles Leaderboard**"
+        header += title
 
     if top_x and top_x > 0:
-        header += f"\n(Top {top_x})"
+        header += f"\n**(Top {top_x})**"
 
     await status_msg.edit(content=header)
 
@@ -468,11 +466,17 @@ async def send_leaderboard(channel, tracked_bots, top_x, force_text, as_thread):
         )
 
         # Seed
-        seed_str = f"{leaderboard_meta['seed']}" if leaderboard_meta.get("seed") else ""
+        seed_content = leaderboard_meta.get("seed", "")
+        seed_raw = seed_content.split("`")[1] if "`" in seed_content else seed_content
+        seed_str = (
+            f"{seed_content}\n-# Command:\n```ruby\nruby runner.rb --seed {seed_raw} --profile [/pfad/zu/deinem/bot]\n```"
+            if seed_content
+            else ""
+        )
 
-        title = f"## Leaderboard vom {date_str}\n-# {stage_str}\n-# {seed_str}"
+        title = f"# Leaderboard vom {date_str}\n-# {stage_str}\n-# {seed_str}"
     else:
-        title = "## Aktuelles Leaderboard"
+        title = "# Aktuelles Leaderboard"
 
     if force_text:
         await send_table_texts(channel, status_msg, leaderboard_json, top_x, title)
