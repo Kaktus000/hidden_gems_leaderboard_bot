@@ -58,9 +58,10 @@ start_bot() {
 }
 
 update_bot() {
-    echo "Pulling latest changes from Git..."
+    echo "Fetching latest changes and overwriting local changes..."
     cd "$REPO_DIR" || exit 1
-    git pull origin main || { echo "Git pull failed"; exit 1; }
+    git fetch origin main || { echo "Git fetch failed"; exit 1; }
+    git reset --hard origin/main || { echo "Git reset failed"; exit 1; }
 
     echo "Updating Python packages..."
     "$VENV_DIR/bin/pip" install --upgrade pip

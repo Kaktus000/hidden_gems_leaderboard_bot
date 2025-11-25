@@ -68,10 +68,11 @@ def main():
     intents = discord.Intents.default()
     intents.message_content = True
     hostname = socket.gethostname()
-    if hostname == "PC-Konsti" or hostname == "KS-uni-HP-ZBook":
-        bot = commands.Bot(command_prefix="?", intents=intents)
-    else:
-        bot = commands.Bot(command_prefix="!", intents=intents)
+    prefix = "?"
+    if hostname == "turtle-01":
+        prefix = "!"
+
+    bot = commands.Bot(command_prefix=prefix, intents=intents)
 
     # Scheduler mit CET
     scheduler = AsyncIOScheduler(timezone=pytz.timezone("Europe/Berlin"))
