@@ -43,7 +43,7 @@ async def poll_watcher(bot: commands.Bot):
         poll = msg.poll
         if poll.has_ended():
             answers = poll.answers
-
+            poll_data.pop(message_id)
             ja = poll.get_answer(1).count
             nein = poll.get_answer(2).count
             match = re.search(r"Bot '(.+?)' \((.+?)\)", poll.question.text)
