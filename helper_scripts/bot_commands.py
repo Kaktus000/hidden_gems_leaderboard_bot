@@ -1,8 +1,7 @@
 # helper_scripts/bot_commands.py
-
 # Standard library imports
-from typing import Optional, List, Dict
-
+from typing import List
+from helper_scripts.helper_functions import *
 # Third-party imports
 import discord
 from discord.ext import commands
@@ -11,6 +10,170 @@ from discord import TextChannel
 # Own modules
 from helper_scripts.helper_functions import get_leaderboard_json
 from helper_scripts.data_functions import get_tracked_bots, set_tracked_bots
+from discord.ext import tasks
+poll_data: dict = load_polls()
+print(f"poll_data geladen: {poll_data}")  # Debug
+@tasks.loop(seconds=5)
+async def poll_watcher(bot: commands.Bot):
+    global poll_data
+    poll_data = load_polls()
+    finished_polls = []
+
+    for message_id, data in poll_data.items():
+        guild_id = data.get("guild_id")
+        channel_id = data["channel_id"]
+        channel = bot.get_channel(channel_id)
+
+        if channel is None:
+            finished_polls.append(message_id)
+            continue
+
+        guild_id = channel.guild.id if channel.guild else None
+        tracked_bots: List[Dict] = get_tracked_bots(guild_id=guild_id)
+        try:
+            msg = await channel.fetch_message(int(message_id))
+        except:
+            finished_polls.append(message_id)
+            continue
+
+        if msg.poll is None:
+            finished_polls.append(message_id)
+            continue
+
+        poll = msg.poll
+        if poll.has_ended():
+            answers = poll.answers
+
+            ja = poll.get_answer(1).count
+            nein = poll.get_answer(2).count
+            match = re.search(r"Bot '(.+?)' \((.+?)\)", poll.question.text)
+            if match:
+                actionedbot_name = match.group(1)
+                actionedbot_author = match.group(2)
+            else:
+                actionedbot_name = None
+                actionedbot_author = None
+            leaderboard_json, _ = get_leaderboard_json()
+            # Matching in leaderboard_json
+            actionedbot_info = None
+            for bot in leaderboard_json:
+                if (
+                        bot.get("Bot", "").lower() == actionedbot_name.lower() and
+                        bot.get("Autor / Team", "").lower() == actionedbot_author.lower()
+                ):
+                    actionedbot_info = bot
+                    break
+
+            if not actionedbot_info:
+                await channel.send(f"❌ Bot '{actionedbot_name}' ({actionedbot_author}) nicht in Leaderboard gefunden.")
+                finished_polls.append(message_id)
+                continue
+            if poll.question.text.split()[-2] == "entfernt":
+                mode = "remove"
+            else:
+                mode = "add"
+            if mode == "add":
+                if ja > nein:
+                    await channel.send(f"Der Bot {actionedbot_name} ({actionedbot_author}) wurde nach dem Voting nun zu den Getrackten Bots Hinzugefügt!")
+                    leaderboard_json, _ = get_leaderboard_json()
+                    if "error" in leaderboard_json[0]:
+                        await channel.send(leaderboard_json[0]["error"])
+                        return
+
+                    bot_names = [actionedbot_info] #soll der bot ... hinzugefügt / entfernt werden
+                    added_bots = []
+                    already_tracked = []
+                    not_found_bots = []
+                    limit_reached_bots = []
+                    multi_index_needed = {}
+                    MAX_TRACKED_BOTS = 25
+                    not_found_counter = 1
+
+                    for bot_name in bot_names:
+                        if len(tracked_bots) >= MAX_TRACKED_BOTS:
+                            limit_reached_bots.append(
+                                f"{not_found_counter}. ❌ {bot_name} (Limit erreicht)"
+                            )
+                            not_found_counter += 1
+                            continue
+
+                        # Prüfen, ob Index angegeben wurde
+                        parts = bot_name.rsplit(" ", 1)
+                        base_name, index = (
+                            (parts[0], int(parts[1]) - 1)
+                            if len(parts) == 2 and parts[1].isdigit()
+                            else (bot_name, None)
+                        )
+
+                        # Matching: zuerst exakt, dann contains
+                        matching_bots = [
+                            b
+                            for b in leaderboard_json
+                            if b.get("Bot", "").lower() == base_name.lower()
+                        ]
+
+                        if not matching_bots:
+                            # dann direkt not_found
+                            not_found_bots.append(f"{not_found_counter}. ❓ {bot_name}")
+                            not_found_counter += 1
+                            continue
+
+                        # wenn mehrere, dann in multi_index_needed speichern
+                        if len(matching_bots) > 1 and index is None:
+                            multi_index_needed[bot_name] = matching_bots
+                            continue
+
+                        # Index anwenden, aber nur innerhalb dieser Liste
+                        index = 0 if index is None else min(index, len(matching_bots) - 1)
+                        bot_info = matching_bots[index]
+
+                        bot_dict = {
+                            "name": bot_info.get("Bot"),
+                            "emoji": bot_info.get("Col1", ""),
+                            "author": bot_info.get("Autor / Team", ""),
+                        }
+
+                        if bot_dict in tracked_bots:
+                            already_tracked.append(bot_dict)
+                            continue
+
+                        tracked_bots.append(bot_dict)
+                        added_bots.append(bot_dict)
+
+                    set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
+                else:
+                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nicht zu den Getrackten Bots Hinzugefügt!")
+            else:
+                if ja > nein:
+                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nun von den Getrackten Bots Entfernt!")
+                    # Parse comma-separated values and ranges
+
+                    removed = None
+                    for i, b in enumerate(tracked_bots):
+                        if b["name"].lower() == actionedbot.lower():
+                            removed = tracked_bots.pop(i)
+                            break
+
+                    if removed:
+                        set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
+                        await channel.send(f"✅ Bot '{actionedbot}' wurde entfernt!")
+                    else:
+                        await channel.send(f"❌ Bot '{actionedbot}' nicht in der Tracking-Liste gefunden!")
+
+                    set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
+
+
+
+
+                else:
+                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nicht von den Getrackten Bots Entfernt!")
+
+            finished_polls.append(message_id)
+
+    for message_id in finished_polls:
+        del poll_data[message_id]
+    if poll_data and poll_data != {}:
+        save_polls(poll_data)
 
 
 def register_commands(
@@ -74,6 +237,94 @@ def register_commands(
             force_text=force_text,
             as_thread=False,  # or True if you implement thread posting
         )
+
+    @bot.command(name="polltrack")
+    async def polltrack_command(ctx: commands.Context, mode: str = None, *, botname: str = None):
+        global poll_data
+        poll_data = load_polls()
+
+        if mode not in ["add", "remove"]:
+            await ctx.send("Nutze: `!polltrack add <Botname>` oder `!polltrack remove <Botname>`")
+            return
+
+        if not botname:
+            await ctx.send("Bitte einen Botnamen angeben.")
+            return
+
+        # 1) Prüfen: existiert bereits eine Poll für diesen Bot?
+        for existing_poll in poll_data.values():
+            if existing_poll.get("bot_name", "").lower() == botname.lower():
+                await ctx.send(f"❌ Für den Bot `{botname}` läuft bereits eine Abstimmung!")
+                return
+
+        # 2) Leaderboard laden
+        leaderboard_json, _ = get_leaderboard_json()
+        if "error" in leaderboard_json[0]:
+            await ctx.send(leaderboard_json[0]["error"])
+            return
+
+        # 3) Genau dieselben Checks wie bei !track add
+        parts = botname.rsplit(" ", 1)
+        base_name, index = (
+            (parts[0], int(parts[1]) - 1)
+            if len(parts) == 2 and parts[1].isdigit()
+            else (botname, None)
+        )
+
+        matching_bots = [
+            b
+            for b in leaderboard_json
+            if b.get("Bot", "").lower() == base_name.lower()
+        ]
+
+        # 4) Kein Match → keine Poll!
+        if not matching_bots:
+            await ctx.send(f"❌ Bot `{botname}` wurde nicht im Leaderboard gefunden!")
+            return
+
+        # 5) Mehrere → Index nötig
+        if len(matching_bots) > 1 and index is None:
+            msg = ["⚠️ Mehrere Bots gefunden — bitte nutze einen Index:"]
+            for i, b in enumerate(matching_bots, start=1):
+                msg.append(f"{i}. {b.get('Col1', '')} {b.get('Bot', '')} ({b.get('Autor / Team', '')})")
+
+            await ctx.send("\n".join(msg))
+            return
+
+        # 6) Index validieren
+        index = 0 if index is None else min(index, len(matching_bots) - 1)
+        bot_info = matching_bots[index]
+        resolved_name = bot_info.get("Bot")
+
+        resolved_name = bot_info.get("Bot")
+        resolved_author = bot_info.get("Autor / Team", "Unbekannt")
+
+        # 7) Frage bauen
+        if mode == "add":
+            question = f"Soll der Bot '{resolved_name}' ({resolved_author}) zu den getrackten Bots hinzugefügt werden?"
+        else:
+            question = f"Soll der Bot '{resolved_name}' ({resolved_author}) von den getrackten Bots entfernt werden?"
+
+        # Poll senden
+        poll = discord.Poll(
+            question=question,
+            duration=1,
+            answers=[
+                discord.PollAnswer(text="Ja"),
+                discord.PollAnswer(text="Nein"),
+            ]
+        )
+
+        msg = await ctx.send(poll=poll)
+
+        poll_data[str(msg.id)] = {
+            "channel_id": ctx.channel.id,
+            "bot_name": resolved_name,
+            "bot_author": resolved_author  # <-- NEU
+        }
+
+        save_polls(poll_data)
+        await ctx.send("🗳️ Abstimmung wurde erstellt!")
 
     # MARK: !schedule
     @bot.command(name="schedule", aliases=["s"])

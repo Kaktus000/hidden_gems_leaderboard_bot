@@ -547,3 +547,26 @@ async def post_lb_in_scheduled_channels(bot):
                 force_text=False,
                 as_thread=True,
             )
+from helper_scripts.globals import LOCAL_DATA_PATH_DIR
+
+POLL_FILE = LOCAL_DATA_PATH_DIR / "polls.json"
+
+def load_polls():
+    print("Loading poll data from:", POLL_FILE)
+    if not os.path.exists(POLL_FILE):
+        print("PathNotFound")
+        return {}
+
+    try:
+        with open(POLL_FILE, "r") as f:
+#            print(f"{json.load(f)}loaded")
+            return json.load(f)
+    except Exception as e:
+        print(str(e) + "lol")
+        return {}
+
+
+def save_polls(data):
+    print("Saving poll data to:", POLL_FILE)
+    with open(POLL_FILE, "w") as f:
+        json.dump(data, f, indent=4)

@@ -8,14 +8,14 @@ from PIL import Image
 import os
 
 # Third-party imports
-from discord import PartialEmoji
+from discord.partial_emoji import *
 
 # Own custom scripts
 from helper_scripts.globals import BASE_DIR
 
 
 #       |==========================|
-#       |      ASSET_ACCES.PY      |
+#       |      ASSET_ACCESS.PY      |
 #       |==========================|
 
 

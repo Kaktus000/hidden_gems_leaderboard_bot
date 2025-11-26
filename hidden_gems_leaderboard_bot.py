@@ -13,9 +13,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz
 from dotenv import load_dotenv
-
 # Own custom scripts / modules
-from helper_scripts.bot_commands import register_commands
+from helper_scripts.bot_commands import register_commands, poll_watcher
 from helper_scripts.helper_functions import (
     post_lb_in_scheduled_channels,
     send_leaderboard,
@@ -53,11 +52,11 @@ def main():
             )
 
     # Load Environment Variables
-
+    print(DOTENV_PATH)
     load_dotenv(dotenv_path=DOTENV_PATH)
     DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
     if DISCORD_BOT_TOKEN is None:
-        raise ValueError("DISCORD_BOT_TOKEN ist nicht in der .env gesetzt!")
+        raise ValueError("DISCORD_BOT_TOKEN ist nicht in der environment_variables.env gesetzt!")
 
     ADMINS = set(
         int(x.strip())
@@ -106,7 +105,7 @@ def main():
         save_channels,
         send_leaderboard,
     )
-
+    poll_watcher.start(bot,)
     bot.run(DISCORD_BOT_TOKEN)
 
 
