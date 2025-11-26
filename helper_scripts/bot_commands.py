@@ -29,7 +29,7 @@ async def poll_watcher(bot: commands.Bot):
             continue
 
         guild_id = channel.guild.id if channel.guild else None
-        tracked_bots: List[Dict] = get_tracked_bots(guild_id=guild_id)
+        tracked_bots = get_tracked_bots(guild_id=guild_id)
         try:
             msg = await channel.fetch_message(int(message_id))
         except:
@@ -142,23 +142,23 @@ async def poll_watcher(bot: commands.Bot):
 
                     set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
                 else:
-                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nicht zu den Getrackten Bots Hinzugefügt!")
+                    await channel.send(f"Der Bot {actionedbot_name} ({actionedbot_author}) wurde nach dem Voting nicht zu den Getrackten Bots Hinzugefügt!")
             else:
                 if ja > nein:
-                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nun von den Getrackten Bots Entfernt!")
+                    await channel.send(f"Der Bot {actionedbot_name} ({actionedbot_author}) wurde nach dem Voting nun von den Getrackten Bots Entfernt!")
                     # Parse comma-separated values and ranges
 
                     removed = None
                     for i, b in enumerate(tracked_bots):
-                        if b["name"].lower() == actionedbot.lower():
+                        if b["name"].lower() == actionedbot_name.lower():
                             removed = tracked_bots.pop(i)
                             break
 
                     if removed:
                         set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
-                        await channel.send(f"✅ Bot '{actionedbot}' wurde entfernt!")
+                        await channel.send(f"✅ Bot '{actionedbot_name} ({actionedbot_author})' wurde entfernt!")
                     else:
-                        await channel.send(f"❌ Bot '{actionedbot}' nicht in der Tracking-Liste gefunden!")
+                        await channel.send(f"❌ Bot '{actionedbot_name} ({actionedbot_author})' nicht in der Tracking-Liste gefunden!")
 
                     set_tracked_bots(guild_id=guild_id, tracked=tracked_bots)
 
@@ -166,7 +166,7 @@ async def poll_watcher(bot: commands.Bot):
 
 
                 else:
-                    await channel.send(f"Der Bot {actionedbot} wurde nach dem Voting nicht von den Getrackten Bots Entfernt!")
+                    await channel.send(f"Der Bot {actionedbot_name} ({actionedbot_author}) wurde nach dem Voting nicht von den Getrackten Bots Entfernt!")
 
             finished_polls.append(message_id)
 
